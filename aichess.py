@@ -677,7 +677,7 @@ class Aichess():
             print(f"\n--- Movimiento {num_moves + 1} ---")
             
             if turn == self.WHITES:
-                eval_score, nextMove = self._minimax(currentState, depthWhite, self.WHITES, turn)
+                eval_score, nextMove = self._minimax_alphaBeta(currentState, depthWhite, self.WHITES, turn)
                 print(f"Evaluación Blancas: {eval_score}")
                 print(f"White's move: {nextMove}")
                 
@@ -686,7 +686,7 @@ class Aichess():
                     break
                 self.chess.move(*nextMove)
             else:
-                eval_score, nextMove = self._minimax(currentState, depthBlack, self.BLACKS, turn)
+                eval_score, nextMove = self._minimax_alphaBeta(currentState, depthBlack, self.BLACKS, turn)
                 print(f"Evaluación Negras: {eval_score}")
                 print(f"Black's move: {nextMove}")
                 
@@ -909,7 +909,106 @@ class Aichess():
                     best_move = move
             
             return best_eval, best_move
+
+    def _minimax_alphaBeta(self, state, depth, maximizing_player, turn, alpha=-math.inf, beta=math.inf):
+        """
+        Implementación de minimax puro.
         
+        Args:
+            state: Estado actual del tablero
+            depth: Profundidad de búsqueda restante
+            maximizing_player: WHITES o BLACKS - quién inició la búsqueda (NO cambia)
+            turn: WHITES o BLACKS - de quién es el turno actual (CAMBIA en cada nivel)
+        
+        Returns:
+            tuple: (evaluación, mejor_movimiento)
+        """
+        
+        # Condiciones de parada
+        #if depth <= 0 or self.is_checkmate(state, self.WHITES) or self.is_checkmate(state, self.BLACKS):
+        #    return self.heuristica(state, maximizing_player), None
+
+        if depth <= 0 or self.isWhiteInCheckMate(state) or self.isBlackInCheckMate(state):
+            return self.heuristica(state, maximizing_player), None
+
+        # Determinar si estamos maximizando o minimizando
+        is_maximizing = (turn == maximizing_player)
+        # TODO: Error en gerlistnextstateB que no identifica por color comentar en clase
+        self.newBoardSim(state)
+        # Obtener los próximos estados según el turno
+        if turn == self.WHITES:
+            nextStates = self.getListNextStatesW(state)
+        else:
+            nextStates = self.getListNextStatesB(state)
+        # Validar movimientos y filtrar los que dejan al propio rey en jaque
+        valid_moves = []
+        for newState in nextStates:
+            move = self.getMovement(state, newState)
+            if None in move:
+                continue
+            
+            # Simular el movimiento
+            self.newBoardSim(state)
+            self.chess.moveSim(*move, verbose=False)
+            simState = self.getCurrentStateSim()
+            
+            # Verificar que el movimiento no deje al propio rey en jaque
+            if turn == self.WHITES:
+                if self.isWatchedWk(simState):
+                    continue  # Movimiento inválido, deja al rey blanco en jaque
+            else:
+                if self.isWatchedBk(simState):
+                    continue  # Movimiento inválido, deja al rey negro en jaque
+            
+
+            valid_moves.append((move, simState))
+
+        self.newBoardSim(state)
+
+        # Si no hay movimientos válidos
+        if not valid_moves:
+            if (turn == self.WHITES and self.isWatchedWk(state)) or \
+            (turn == self.BLACKS and self.isWatchedBk(state)):
+                return (-math.inf if turn == maximizing_player else math.inf, None)
+            return 0, None  # Ahogado
+        
+        # Aplicar Minimax
+        if is_maximizing:
+            # Maximizando: buscar el mejor movimiento (mayor evaluación)
+            best_eval = -math.inf
+            best_move = None
+            
+            for move, new_state in valid_moves:
+                # Llamada recursiva alternando el turno
+                eval_score, _ = self._minimax_alphaBeta(new_state, depth - 1, maximizing_player, not turn, alpha, beta)
+
+                if eval_score > best_eval:
+                    best_eval = eval_score
+                    best_move = move
+                alpha = max(alpha, eval_score)
+                if beta <= alpha:
+                    break
+            
+            return best_eval, best_move
+        
+        else:  # Minimizando
+            # Minimizando: buscar el movimiento que minimiza la evaluación
+            best_eval = math.inf
+            best_move = None
+            
+            for move, new_state in valid_moves:
+                # Llamada recursiva alternando el turno
+                eval_score, _ = self._minimax_alphaBeta(new_state, depth - 1, maximizing_player, not turn, alpha, beta)
+                
+                if eval_score < best_eval:
+                    best_eval = eval_score
+                    best_move = move
+                beta = min(beta, eval_score)
+                if beta <= alpha:
+                    break
+            
+            return best_eval, best_move
+     
 
     def getCurrentStateSim(self):
         listStates = []
