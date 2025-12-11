@@ -599,36 +599,48 @@ class Aichess():
 
         print("Sequence of moves: ", path)
         
-    def choose_action(self, state, epsilon):
+        return path
+        
+    def choose_action(self, state, epsilon, bk=None):
         possible_actions = self.getListNextStatesW(state)
         if not possible_actions:
             return None
         
-        if np.random.random() < epsilon:
-            return possible_actions[np.random.randint(len(possible_actions))]
-        
         state_key = self.stateToString(state)
+        explore = np.random.random() < epsilon
         
         best_action = None
         best_q_value = float('-inf')
+        valid = []
         
         for action in possible_actions:
-            action_key = self.stateToString(action)
-            q_value = self.qTable[state_key][action_key]
-            if q_value > best_q_value:
-                best_q_value = q_value
-                best_action = action
+            piece_dest = action[0]
+            
+            if bk and piece_dest[0] == bk[0] and piece_dest[1] == bk[1]:
+                continue
+            
+            valid.append(action)
+            if not explore:
+                action_key = self.stateToString(action)
+                q_value = self.qTable[state_key][action_key]
+                if q_value > best_q_value:
+                    best_q_value = q_value
+                    best_action = action
+        if not valid:
+            print("No valid actions available from state:", state)
+            return None
+        if explore:
+            best_action = valid[np.random.randint(len(valid))]
         return best_action
         
     def nextStateQL(self, state, action):
-        self.newBoardSim(state)
         movement = self.getMovement(state, action)
         if movement[0] is None or movement[1] is None:
-            print(f"Movimiento inválido: {state} -> {action}")
+            print(f"Invalid movement: {state} -> {action}")
             return self.copyState(state)
         self.chess.moveSim(movement[0], movement[1], verbose=False)
         
-        return self.copyState(self.getCurrentStateSim())
+        return self.getWhiteState(self.getCurrentStateSim())
     
     def getReward(self, state):
         if self.isCheckMate(state):
@@ -650,16 +662,17 @@ class Aichess():
                 epsilon, epsilon_min = 0.01, epsilon_decay = 0.995,
                 convThreshold=0.001, patience=10):
         stable_epochs = 0
+        bk = self.getPieceState(self.getCurrentState(), 12)  # Black king position
         for epoch in trange(epochs):
             currentState = self.copyState(initialState)
-            self.newBoardSim(currentState)
+            self.newBoardSim(self.getCurrentState())
             oldQTable = copy.deepcopy(self.qTable)
-            
+
             while not self.isCheckMate(currentState):
                 oldState = self.copyState(currentState)
-                action = self.choose_action(currentState, epsilon)
+                action = self.choose_action(currentState, epsilon, bk)
                 if action is None:
-                    print("No possible actions from state:", currentState)
+                    #print("No possible actions from state:", currentState)
                     break
                 
                 currentState = self.nextStateQL(currentState, action)
@@ -692,7 +705,22 @@ class Aichess():
                 stable_epochs = 0
                 
         print("Training completed.")
-        print(f"Estados explorados: {len(self.qTable)}")
+        print(f"Explored states: {len(self.qTable)}")
+        
+    def resetQL(self, TA):
+        self.qTable = defaultdict(lambda: defaultdict(float))
+        self.chess = chess.Chess(TA, True)
+        
+
+def print_menu():
+    print("\n" + "="*40)
+    print("       Q-Learning Chess - Menu")
+    print("="*40)
+    print("1. Print board")
+    print("2. Train Q-Learning")
+    print("3. Reconstruct path")
+    print("4. Exit")
+    print("="*40)
 
 if __name__ == "__main__":
     # if len(sys.argv) < 2:
@@ -710,23 +738,54 @@ if __name__ == "__main__":
     # Initialize AI chess with the board
     print("Starting AI chess...")
     aichess = Aichess(TA, True)
-
-    # Print initial board
-    print("Printing board:")
-    aichess.chess.boardSim.print_board()
-
-    # Get a copy of the current white state
-    currentState = aichess.getCurrentStateSim()
+    
+    # Get initial state
+    currentState = aichess.chess.board.currentStateW
     print("Current State:", currentState, "\n")
+    trained = False
 
-    # Run A* search
-    aichess.trainQL(initialState=currentState, epochs=10000, alpha=0.1, gamma=0.95, epsilon=0.8, epsilon_decay=0.995, convThreshold=0.001, patience=20)
-    # print("\nQ-Table")
-    # for state_key, actions in aichess.qTable.items():
-    #     print(f"State: {state_key}")
-    #     for action_key, q_value in actions.items():
-    #         print(f"  Action: {action_key}, Q-Value: {q_value}")
-    aichess.reconstructPathQL(currentState)
-    print("Q-Learning End\n")
-    print("Printing final board after Q-Learning:")
-    aichess.chess.board.print_board()
+    while True:
+        print_menu()
+        option = input("Select an option: ").strip()
+        
+        if option == "1":
+            print("\n--- Current board ---")
+            aichess.chess.board.print_board()
+            
+        elif option == "2":
+            print("\n--- Training Q-Learning ---")
+            # Reset board and Q-table for fresh training
+            if trained:
+                aichess.resetQL(TA)
+                currentState = aichess.chess.boardSim.currentStateW
+                
+            aichess.trainQL(
+                initialState=currentState, 
+                epochs=10000, 
+                alpha=0.1, 
+                gamma=0.95, 
+                epsilon=0.8, 
+                epsilon_decay=0.995, 
+                convThreshold=0.001, 
+                patience=20 
+            )
+            trained = True
+            print("Training completed.")
+            
+        elif option == "3":
+            if not trained:
+                print("\n[!] You must train the model first (option 2).")
+            else:
+                print("\n--- Reconstructing path ---")
+                # Reset board to initial state
+                aichess.chess = chess.Chess(TA, True)
+                currentState = aichess.chess.board.currentStateW
+                path = aichess.reconstructPathQL(currentState)
+                print(f"\nPath length: {len(path)}")
+                
+        elif option == "4":
+            print("\nGoodbye!")
+            break
+            
+        else:
+            print("\n[!] Invalid option. Try again.")
