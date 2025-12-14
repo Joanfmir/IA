@@ -607,7 +607,7 @@ class Aichess:
 
         return path
 
-    def choose_action(self, state, epsilon, bk=None, drunkenness=1.0):
+    def choose_action(self, state, epsilon, bk=None, drunkenness=0.0):
         possible_actions = self.getListNextStatesW(state)
         if not possible_actions:
             return None
@@ -636,19 +636,19 @@ class Aichess:
             print("No valid actions available from state:", state)
             return None
 
-        # Drunken sailor logic
-        if np.random.random() > drunkenness:
-            # Randomly choose an action that is NOT the intended one (if possible)
+        # Lógica de Drunken sailor
+        if np.random.random() < drunkenness:
+            # Elegir aleatoriamente una acción que NO sea la intencionada (si es posible)
             if len(valid) > 1:
-                # Filter out the best_action/intended action if it exists
+                # Filtrar la mejor acción/intencionada si existe
                 if best_action in valid:
                     other_actions = [a for a in valid if a != best_action]
                 else:
-                    other_actions = valid  # Should not happen if best_action was set from valid, but safety first
+                    other_actions = valid  # No debería ocurrir si best_action se estableció desde valid, pero por seguridad
 
                 if other_actions:
                     best_action = other_actions[np.random.randint(len(other_actions))]
-            # If only 1 action, we must take it even if drunken (can't choose another)
+            # Si solo hay 1 acción, debemos tomarla incluso si está borracho (no se puede elegir otra)
 
         if explore:
             best_action = valid[np.random.randint(len(valid))]
@@ -698,23 +698,20 @@ class Aichess:
         convThreshold=0.001,
         patience=10,
         verbose=True,
-        drunkenness=1.0,
+        drunkenness=0.0,
     ):
         stable_epochs = 0
-        self.snapshots = []  # List to store snapshots
+        self.snapshots = []  # Lista de snapshots
 
-        bk = self.getPieceState(self.getCurrentState(), 12)  # Black king position
+        bk = self.getPieceState(self.getCurrentState(), 12)  # Posición del rey negro
         for epoch in trange(epochs, disable=not verbose):
-            # Save snapshot if at checkpoint
             self.snapshots.append(copy.deepcopy(self.qTable))
 
             currentState = self.copyState(initialState)
             self.newBoardSim(self.getCurrentState())
             oldQTable = copy.deepcopy(self.qTable)
 
-            step = 0
-            while not self.isCheckMate(currentState) and step < 50:
-                step += 1
+            while not self.isCheckMate(currentState):
                 oldState = self.copyState(currentState)
                 action = self.choose_action(currentState, epsilon, bk, drunkenness)
                 if action is None:
@@ -758,7 +755,6 @@ class Aichess:
                 print(f"\nEpoch {epoch}: DeltaQ={deltaQ:.6f}, Epsilon={epsilon:.4f}")
             if deltaQ < convThreshold:
                 stable_epochs += 1
-                print(f"Stable epochs: {stable_epochs}")
                 if stable_epochs >= patience:
                     if verbose:
                         print(f"Converged after {epoch+1} epochs.")
@@ -770,17 +766,22 @@ class Aichess:
             print("Training completed.")
             print(f"Explored states: {len(self.qTable)}")
 
-        # Save final snapshot
+        # Guardar snapshot final
         self.snapshots.append(copy.deepcopy(self.qTable))
 
-        # Filter snapshots to return only 4 (Start, 33%, 66%, End)
+        # Filtrar snapshots para devolver solo 4 (Inicio, 33%, 66%, Fin)
         n_snaps = len(self.snapshots)
         if n_snaps >= 4:
             indices = [0, int(n_snaps * 0.33), int(n_snaps * 0.66), n_snaps - 1]
             filtered_snapshots = [self.snapshots[i] for i in indices]
-            return filtered_snapshots
+        else:
+            filtered_snapshots = self.snapshots
 
-        return self.snapshots
+        return {
+            "snapshots": filtered_snapshots,
+            "epochs": epoch + 1,
+            "converged": stable_epochs >= patience,
+        }
 
     def resetQL(self, TA):
         self.qTable = defaultdict(lambda: defaultdict(float))
@@ -794,7 +795,7 @@ def save_snapshots_to_json(snapshots, filename="snapshots.json"):
     print(f"Saving snapshots to '{filename}'...")
     serializable_snapshots = []
     for snap in snapshots:
-        # Convert defaultdict to dict for JSON serialization
+        # Convertir defaultdict a dict para serialización JSON
         clean_snap = {k: dict(v) for k, v in snap.items()}
         serializable_snapshots.append(clean_snap)
 
@@ -854,17 +855,20 @@ if __name__ == "__main__":
             mode = input("Select mode (1/2): ").strip()
 
             if mode == "1":
-                drunkenness = 1.0
+                drunkenness = 0.0
             if mode == "2":
                 try:
                     d_input = input(
-                        "Enter drunkenness of the sailor (0.0 - 1.0) [default 0.9]: "
+                        "Enter drunkenness of the sailor (0.0 - 1.0) [default 0.01]: "
                     ).strip()
                     if d_input:
                         drunkenness = float(d_input)
+                        if drunkenness < 0.0 or drunkenness > 1.0:
+                            print("Invalid drunkenness value, using default 0.01")
+                            drunkenness = 0.01
                 except ValueError:
-                    print("Invalid input, using default 0.9")
-                    drunkenness = 0.9
+                    print("Invalid input, using default 0.01")
+                    drunkenness = 0.01
 
             # Reset board and Q-table for fresh training
             if trained:
@@ -872,7 +876,7 @@ if __name__ == "__main__":
                 currentState = aichess.chess.boardSim.currentStateW
 
             # Retrieve snapshots result
-            snapshots = aichess.trainQL(
+            result = aichess.trainQL(
                 initialState=currentState,
                 epochs=10000,
                 alpha=0.1,
@@ -883,8 +887,11 @@ if __name__ == "__main__":
                 patience=10,
                 drunkenness=drunkenness,
             )
+            snapshots = result["snapshots"] if isinstance(result, dict) else result
             trained = True
             print(f"Snapshots captured: {len(snapshots)}")
+            if isinstance(result, dict):
+                print(f"Converged: {result['converged']} in {result['epochs']} epochs")
 
             # Save snapshots to JSON
             save_snapshots_to_json(snapshots)
