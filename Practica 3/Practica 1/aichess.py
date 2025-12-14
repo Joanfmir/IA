@@ -5,6 +5,7 @@ Created on Thu Sep  8 11:22:03 2022
 
 @author: ignasi
 """
+import json
 import copy
 import math
 
@@ -23,7 +24,7 @@ RawStateType = List[List[List[int]]]
 from itertools import permutations
 
 
-class Aichess():
+class Aichess:
     """
     A class to represent the game of chess.
 
@@ -33,7 +34,7 @@ class Aichess():
     -----------
     chess : Chess
         represents the chess game
-        
+
     listNextStates : list
         List of next possible states for the current player.
 
@@ -90,7 +91,7 @@ class Aichess():
     reconstructPath(state, depth) -> None
         Reconstructs the path from initial state to the target state for A*.
 
-    h(state) -> int       
+    h(state) -> int
         Heuristic function for A* search.
 
     DepthFirstSearch(currentState, depth) -> bool
@@ -105,7 +106,7 @@ class Aichess():
     BreadthFirstSearch(currentState, depth) -> None
         Breadth-first search algorithm.
 
-    AStarSearch(currentState) 
+    AStarSearch(currentState)
         A* search algorithm -> To be implemented by you
 
     """
@@ -121,33 +122,37 @@ class Aichess():
         self.listVisitedStates = []
         self.listVisitedSituations = []
         self.pathToTarget = []
-        self.depthMax = 8;
+        self.depthMax = 8
         # Dictionary to reconstruct the visited path
         self.dictPath = {}
         # Prepare a dictionary to control the visited state and at which
         # depth they were found for DepthFirstSearchOptimized
         self.dictVisitedStates = {}
         self.qTable = defaultdict(lambda: defaultdict(float))
-        
 
     def copyState(self, state):
-        
+
         copyState = []
         for piece in state:
             copyState.append(piece.copy())
         return copyState
-        
+
     def isVisitedSituation(self, color, mystate):
-        
-        if (len(self.listVisitedSituations) > 0):
+
+        if len(self.listVisitedSituations) > 0:
             perm_state = list(permutations(mystate))
 
             isVisited = False
             for j in range(len(perm_state)):
 
                 for k in range(len(self.listVisitedSituations)):
-                    if self.isSameState(list(perm_state[j]), self.listVisitedSituations.__getitem__(k)[1]) and color == \
-                            self.listVisitedSituations.__getitem__(k)[0]:
+                    if (
+                        self.isSameState(
+                            list(perm_state[j]),
+                            self.listVisitedSituations.__getitem__(k)[1],
+                        )
+                        and color == self.listVisitedSituations.__getitem__(k)[0]
+                    ):
                         isVisited = True
 
             return isVisited
@@ -188,7 +193,7 @@ class Aichess():
 
     def isVisited(self, mystate):
 
-        if (len(self.listVisitedStates) > 0):
+        if len(self.listVisitedStates) > 0:
             perm_state = list(permutations(mystate))
 
             isVisited = False
@@ -205,16 +210,22 @@ class Aichess():
 
     # Function for check mate for exercise 1 (white king is missing)
     def isCheckMate(self, mystate):
-        
+
         # list of possible check mate states
-        listCheckMateStates = [[[0,0,2],[2,4,6]],[[0,1,2],[2,4,6]],[[0,2,2],[2,4,6]],[[0,6,2],[2,4,6]],[[0,7,2],[2,4,6]]]
+        listCheckMateStates = [
+            [[0, 0, 2], [2, 4, 6]],
+            [[0, 1, 2], [2, 4, 6]],
+            [[0, 2, 2], [2, 4, 6]],
+            [[0, 6, 2], [2, 4, 6]],
+            [[0, 7, 2], [2, 4, 6]],
+        ]
 
         # Check all state permuations and if they coincide with a list of CheckMates
         for permState in list(permutations(mystate)):
             if list(permState) in listCheckMateStates:
                 return True
 
-        return False   
+        return False
 
     def newBoardSim(self, listStates):
         # We create a  new boardSim
@@ -239,7 +250,7 @@ class Aichess():
         for j in self.chess.board.currentStateB:
             listStates.append(j)
         return listStates
-    
+
     def getCurrentStateSim(self):
         listStates = []
         for i in self.chess.boardSim.currentStateW:
@@ -296,45 +307,45 @@ class Aichess():
         return [pieceState, pieceNextState]
 
     def movePieces(self, start, depthStart, to, depthTo):
-        
+
         # To move from one state to the next we will need to find
         # the state in common, and then move until the node 'to'
         moveList = []
         # We want that the depths are equal to find a common ancestor
         nodeTo = to
         nodeStart = start
-        # if the depth of the node To is larger than that of start, 
+        # if the depth of the node To is larger than that of start,
         # we pick the ancesters of the node until being at the same
         # depth
-        while(depthTo > depthStart):
-            moveList.insert(0,to)
+        while depthTo > depthStart:
+            moveList.insert(0, to)
             nodeTo = self.dictPath[str(nodeTo)][0]
-            depthTo-=1
+            depthTo -= 1
         # Analogous to the previous case, but we trace back the ancestors
-        #until the node 'start'
-        while(depthStart > depthTo):
+        # until the node 'start'
+        while depthStart > depthTo:
             ancestreStart = self.dictPath[str(nodeStart)][0]
             # We move the piece the the parerent state of nodeStart
             self.changeState(nodeStart, ancestreStart)
             nodeStart = ancestreStart
             depthStart -= 1
 
-        moveList.insert(0,nodeTo)
+        moveList.insert(0, nodeTo)
         # We seek for common node
         while nodeStart != nodeTo:
             ancestreStart = self.dictPath[str(nodeStart)][0]
             # Move the piece the the parerent state of nodeStart
-            self.changeState(nodeStart,ancestreStart)
+            self.changeState(nodeStart, ancestreStart)
             # pick the parent of nodeTo
             nodeTo = self.dictPath[str(nodeTo)][0]
             # store in the list
-            moveList.insert(0,nodeTo)
+            moveList.insert(0, nodeTo)
             nodeStart = ancestreStart
         # Move the pieces from the node in common
         # until the node 'to'
         for i in range(len(moveList)):
             if i < len(moveList) - 1:
-                self.changeState(moveList[i],moveList[i+1])
+                self.changeState(moveList[i], moveList[i + 1])
 
     def reconstructPath(self, state, depth):
         # Once the solution is found, reconstruct the path taken to reach it
@@ -391,7 +402,7 @@ class Aichess():
             movedPieceTo = 0
 
         # Move the piece that changed
-        self.chess.moveSim(start[movedPieceStart], to[movedPieceTo])       
+        self.chess.moveSim(start[movedPieceStart], to[movedPieceTo])
 
     def DepthFirstSearch(self, currentState, depth):
         # We visited the node, therefore we add it to the list
@@ -430,7 +441,6 @@ class Aichess():
         # since we explored all successors
         self.listVisitedStates.remove(currentState)
 
-
     def worthExploring(self, state, depth):
         # First of all, check that the depth is not bigger than depthMax
         if depth > self.depthMax:
@@ -452,7 +462,6 @@ class Aichess():
             permStr = str(state)
             self.dictVisitedStates[permStr] = depth
             return True
-
 
     def DepthFirstSearchOptimized(self, currentState, depth):
         # is it checkmate?
@@ -479,7 +488,6 @@ class Aichess():
                     return True
                 # restore the board to its previous state
                 self.chess.moveSim(son[0], currentState[movedPieceIndex])
-
 
     def BreadthFirstSearch(self, currentState, depth):
         """
@@ -514,8 +522,8 @@ class Aichess():
                     self.dictPath[str(son)] = (node, depthNode)
             currentState = node
             depthCurrentState = depthNode
-    
-    # Q learning 
+
+    # Q learning
 
     def stateToString(self, whiteState):
         """
@@ -535,7 +543,6 @@ class Aichess():
 
         return stringState
 
-
     def stringToState(self, stringWhiteState):
         """
         Convert a string representation of white pieces' state to a list.
@@ -552,7 +559,6 @@ class Aichess():
             whiteState.append([int(stringWhiteState[4]), int(stringWhiteState[6]), 2])
 
         return whiteState
-
 
     def reconstructPathQL(self, initialState):
         """
@@ -598,27 +604,27 @@ class Aichess():
                 checkMate = True
 
         print("Sequence of moves: ", path)
-        
+
         return path
-        
-    def choose_action(self, state, epsilon, bk=None):
+
+    def choose_action(self, state, epsilon, bk=None, drunkenness=1.0):
         possible_actions = self.getListNextStatesW(state)
         if not possible_actions:
             return None
-        
+
         state_key = self.stateToString(state)
         explore = np.random.random() < epsilon
-        
+
         best_action = None
-        best_q_value = float('-inf')
+        best_q_value = float("-inf")
         valid = []
-        
+
         for action in possible_actions:
             piece_dest = action[0]
-            
+
             if bk and piece_dest[0] == bk[0] and piece_dest[1] == bk[1]:
                 continue
-            
+
             valid.append(action)
             if not explore:
                 action_key = self.stateToString(action)
@@ -629,98 +635,184 @@ class Aichess():
         if not valid:
             print("No valid actions available from state:", state)
             return None
+
+        # Drunken sailor logic
+        if np.random.random() > drunkenness:
+            # Randomly choose an action that is NOT the intended one (if possible)
+            if len(valid) > 1:
+                # Filter out the best_action/intended action if it exists
+                if best_action in valid:
+                    other_actions = [a for a in valid if a != best_action]
+                else:
+                    other_actions = valid  # Should not happen if best_action was set from valid, but safety first
+
+                if other_actions:
+                    best_action = other_actions[np.random.randint(len(other_actions))]
+            # If only 1 action, we must take it even if drunken (can't choose another)
+
         if explore:
             best_action = valid[np.random.randint(len(valid))]
         return best_action
-        
+
     def nextStateQL(self, state, action):
         movement = self.getMovement(state, action)
         if movement[0] is None or movement[1] is None:
             print(f"Invalid movement: {state} -> {action}")
             return self.copyState(state)
         self.chess.moveSim(movement[0], movement[1], verbose=False)
-        
+
         return self.getWhiteState(self.getCurrentStateSim())
-    
+
+    """def getReward(self, state):
+        if self.isCheckMate(state):
+            return 100
+        else:
+            return -1"""
+
     def getReward(self, state):
         if self.isCheckMate(state):
             return 100
         else:
-            return -1
-    
+            # return -1
+            return -(self.h(state))
+
     def getQValue(self, state, action):
         state_key = self.stateToString(state)
         action_key = self.stateToString(action)
         return self.qTable[state_key][action_key]
-    
+
     def setQValue(self, state, action, value):
         state_key = self.stateToString(state)
         action_key = self.stateToString(action)
         self.qTable[state_key][action_key] = value
-        
-    def trainQL(self, initialState, epochs, alpha, gamma, 
-                epsilon, epsilon_min = 0.01, epsilon_decay = 0.995,
-                convThreshold=0.001, patience=10):
+
+    def trainQL(
+        self,
+        initialState,
+        epochs,
+        alpha,
+        gamma,
+        epsilon,
+        epsilon_min=0.01,
+        epsilon_decay=0.995,
+        convThreshold=0.001,
+        patience=10,
+        verbose=True,
+        drunkenness=1.0,
+    ):
         stable_epochs = 0
+        self.snapshots = []  # List to store snapshots
+
         bk = self.getPieceState(self.getCurrentState(), 12)  # Black king position
-        for epoch in trange(epochs):
+        for epoch in trange(epochs, disable=not verbose):
+            # Save snapshot if at checkpoint
+            self.snapshots.append(copy.deepcopy(self.qTable))
+
             currentState = self.copyState(initialState)
             self.newBoardSim(self.getCurrentState())
             oldQTable = copy.deepcopy(self.qTable)
 
-            while not self.isCheckMate(currentState):
+            step = 0
+            while not self.isCheckMate(currentState) and step < 50:
+                step += 1
                 oldState = self.copyState(currentState)
-                action = self.choose_action(currentState, epsilon, bk)
+                action = self.choose_action(currentState, epsilon, bk, drunkenness)
                 if action is None:
-                    #print("No possible actions from state:", currentState)
+                    if verbose:
+                        print("No possible actions from state:", currentState)
                     break
-                
+
                 currentState = self.nextStateQL(currentState, action)
                 reward = self.getReward(currentState)
                 oldQValue = self.getQValue(oldState, action)
-                
-                temporalDifference = reward + (gamma * max(self.qTable[self.stateToString(currentState)].values(), default=0)) - oldQValue
+
+                temporalDifference = (
+                    reward
+                    + (
+                        gamma
+                        * max(
+                            self.qTable[self.stateToString(currentState)].values(),
+                            default=0,
+                        )
+                    )
+                    - oldQValue
+                )
                 newQValue = oldQValue + (alpha * temporalDifference)
                 self.setQValue(oldState, action, newQValue)
-                
+
             deltaQ = 0.0
             all_states = set(list(self.qTable.keys()) + list(oldQTable.keys()))
             for state_key in all_states:
-                all_actions = set(list(self.qTable[state_key].keys()) + list(oldQTable[state_key].keys()))
+                all_actions = set(
+                    list(self.qTable[state_key].keys())
+                    + list(oldQTable[state_key].keys())
+                )
                 for action_key in all_actions:
                     q_new = self.qTable[state_key].get(action_key, 0.0)
                     q_old = oldQTable[state_key].get(action_key, 0.0)
                     deltaQ += (q_new - q_old) ** 2
-                
+
             deltaQ = np.sqrt(deltaQ)
             epsilon = max(epsilon * epsilon_decay, epsilon_min)
-            if epoch % 100 == 0:
+            if epoch % 100 == 0 and verbose:
                 print(f"\nEpoch {epoch}: DeltaQ={deltaQ:.6f}, Epsilon={epsilon:.4f}")
             if deltaQ < convThreshold:
                 stable_epochs += 1
+                print(f"Stable epochs: {stable_epochs}")
                 if stable_epochs >= patience:
-                    print(f"Converged after {epoch+1} epochs.")
+                    if verbose:
+                        print(f"Converged after {epoch+1} epochs.")
                     break
             else:
                 stable_epochs = 0
-                
-        print("Training completed.")
-        print(f"Explored states: {len(self.qTable)}")
-        
+
+        if verbose:
+            print("Training completed.")
+            print(f"Explored states: {len(self.qTable)}")
+
+        # Save final snapshot
+        self.snapshots.append(copy.deepcopy(self.qTable))
+
+        # Filter snapshots to return only 4 (Start, 33%, 66%, End)
+        n_snaps = len(self.snapshots)
+        if n_snaps >= 4:
+            indices = [0, int(n_snaps * 0.33), int(n_snaps * 0.66), n_snaps - 1]
+            filtered_snapshots = [self.snapshots[i] for i in indices]
+            return filtered_snapshots
+
+        return self.snapshots
+
     def resetQL(self, TA):
         self.qTable = defaultdict(lambda: defaultdict(float))
         self.chess = chess.Chess(TA, True)
-        
+
+
+def save_snapshots_to_json(snapshots, filename="snapshots.json"):
+    """
+    Saves the list of Q-table snapshots to a JSON file.
+    """
+    print(f"Saving snapshots to '{filename}'...")
+    serializable_snapshots = []
+    for snap in snapshots:
+        # Convert defaultdict to dict for JSON serialization
+        clean_snap = {k: dict(v) for k, v in snap.items()}
+        serializable_snapshots.append(clean_snap)
+
+    with open(filename, "w") as f:
+        json.dump(serializable_snapshots, f, indent=4)
+    print("Snapshots saved successfully.")
+
 
 def print_menu():
-    print("\n" + "="*40)
+    print("\n" + "=" * 40)
     print("       Q-Learning Chess - Menu")
-    print("="*40)
+    print("=" * 40)
     print("1. Print board")
     print("2. Train Q-Learning")
     print("3. Reconstruct path")
     print("4. Exit")
-    print("="*40)
+    print("=" * 40)
+
 
 if __name__ == "__main__":
     # if len(sys.argv) < 2:
@@ -731,14 +823,14 @@ if __name__ == "__main__":
 
     # Load initial positions of the pieces
     # White pieces
-    TA[7][0] = 2  
-    TA[7][5] = 6   
-    TA[0][5] = 12  
+    TA[7][0] = 2
+    TA[7][5] = 6
+    TA[0][5] = 12
 
     # Initialize AI chess with the board
     print("Starting AI chess...")
     aichess = Aichess(TA, True)
-    
+
     # Get initial state
     currentState = aichess.chess.board.currentStateW
     print("Current State:", currentState, "\n")
@@ -747,31 +839,56 @@ if __name__ == "__main__":
     while True:
         print_menu()
         option = input("Select an option: ").strip()
-        
+
         if option == "1":
             print("\n--- Current board ---")
             aichess.chess.board.print_board()
-            
+
         elif option == "2":
             print("\n--- Training Q-Learning ---")
+
+            # Ask for training mode
+            print("Choose training mode:")
+            print("1. Normal (Sober)")
+            print("2. Drunken Sailor")
+            mode = input("Select mode (1/2): ").strip()
+
+            if mode == "1":
+                drunkenness = 1.0
+            if mode == "2":
+                try:
+                    d_input = input(
+                        "Enter drunkenness of the sailor (0.0 - 1.0) [default 0.9]: "
+                    ).strip()
+                    if d_input:
+                        drunkenness = float(d_input)
+                except ValueError:
+                    print("Invalid input, using default 0.9")
+                    drunkenness = 0.9
+
             # Reset board and Q-table for fresh training
             if trained:
                 aichess.resetQL(TA)
                 currentState = aichess.chess.boardSim.currentStateW
-                
-            aichess.trainQL(
-                initialState=currentState, 
-                epochs=10000, 
-                alpha=0.1, 
-                gamma=0.95, 
-                epsilon=0.8, 
-                epsilon_decay=0.995, 
-                convThreshold=0.001, 
-                patience=20 
+
+            # Retrieve snapshots result
+            snapshots = aichess.trainQL(
+                initialState=currentState,
+                epochs=10000,
+                alpha=0.1,
+                gamma=0.95,
+                epsilon=0.8,
+                epsilon_decay=0.995,
+                convThreshold=0.001,
+                patience=10,
+                drunkenness=drunkenness,
             )
             trained = True
-            print("Training completed.")
-            
+            print(f"Snapshots captured: {len(snapshots)}")
+
+            # Save snapshots to JSON
+            save_snapshots_to_json(snapshots)
+
         elif option == "3":
             if not trained:
                 print("\n[!] You must train the model first (option 2).")
@@ -782,10 +899,10 @@ if __name__ == "__main__":
                 currentState = aichess.chess.board.currentStateW
                 path = aichess.reconstructPathQL(currentState)
                 print(f"\nPath length: {len(path)}")
-                
+
         elif option == "4":
             print("\nGoodbye!")
             break
-            
+
         else:
             print("\n[!] Invalid option. Try again.")
